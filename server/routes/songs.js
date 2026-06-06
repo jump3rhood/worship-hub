@@ -39,30 +39,31 @@ router.put('/settings/sunday-date', requireAuth, (req, res) => {
 
 // Create song (admin)
 router.post('/', requireAuth, (req, res) => {
-  const { title, artist, lyrics, chords } = req.body;
+  const { title, artist, lyrics, chords, tag } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
 
   const maxPos = db.prepare('SELECT MAX(position) as max FROM songs').get();
   const position = (maxPos?.max ?? -1) + 1;
 
   const result = db.prepare(
-    'INSERT INTO songs (title, artist, lyrics, chords, position) VALUES (?, ?, ?, ?, ?)'
-  ).run(title.trim(), artist?.trim() || '', lyrics || '', chords || '', position);
+    'INSERT INTO songs (title, artist, lyrics, chords, tag, position) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(title.trim(), artist?.trim() || '', lyrics || '', chords || '', tag || null, position);
 
   res.status(201).json(db.prepare('SELECT * FROM songs WHERE id = ?').get(result.lastInsertRowid));
 });
 
 // Update song (admin)
 router.put('/:id', requireAuth, (req, res) => {
-  const { title, artist, lyrics, chords } = req.body;
+  const { title, artist, lyrics, chords, tag } = req.body;
   const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
   if (!song) return res.status(404).json({ error: 'Song not found' });
 
-  db.prepare('UPDATE songs SET title = ?, artist = ?, lyrics = ?, chords = ? WHERE id = ?').run(
+  db.prepare('UPDATE songs SET title = ?, artist = ?, lyrics = ?, chords = ?, tag = ? WHERE id = ?').run(
     title?.trim() ?? song.title,
     artist?.trim() ?? song.artist,
     lyrics ?? song.lyrics,
     chords ?? song.chords,
+    tag !== undefined ? (tag || null) : song.tag,
     req.params.id
   );
 

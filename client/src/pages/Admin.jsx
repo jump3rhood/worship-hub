@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '../api';
+import { SONG_TAGS, TagBadge } from '../tags';
 
 // ---------- Drag handle icon ----------
 function DragHandle({ listeners, attributes }) {
@@ -54,7 +55,10 @@ function SortableSongRow({ song, index, onEdit, onDelete }) {
       <DragHandle listeners={listeners} attributes={attributes} />
       <span className="text-slate-600 font-mono text-sm w-5 text-center shrink-0">{index + 1}</span>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-white truncate">{song.title}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="font-medium text-white truncate">{song.title}</p>
+          {song.tag && <TagBadge tag={song.tag} />}
+        </div>
         {song.artist && <p className="text-sm text-slate-400 truncate">{song.artist}</p>}
       </div>
       <div className="flex gap-1 shrink-0">
@@ -82,16 +86,38 @@ function SortableSongRow({ song, index, onEdit, onDelete }) {
 }
 
 // ---------- Song modal (add / edit) ----------
-const EMPTY_FORM = { title: '', artist: '', lyrics: '', chords: '' };
+const EMPTY_FORM = { title: '', artist: '', lyrics: '', chords: '', tag: '' };
 
-function SongModal({ song, onSave, onClose }) {
-  const [form, setForm] = useState(song ? { title: song.title, artist: song.artist, lyrics: song.lyrics, chords: song.chords } : EMPTY_FORM);
+const toForm = (s) => s
+  ? { title: s.title || '', artist: s.artist || '', lyrics: s.lyrics || '', chords: s.chords || '', tag: s.tag || '' }
+  : EMPTY_FORM;
+
+function SongModal({ song, songs, songIndex, onSave, onClose, onNavigate }) {
+  const [form, setForm] = useState(() => toForm(song));
   const [tab, setTab] = useState('details');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Reset form when navigating to a different song
+  useEffect(() => {
+    setForm(toForm(song));
+    setError('');
+  }, [song?.id]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(toForm(song));
+
   function update(field) {
     return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  function tryClose() {
+    if (isDirty && !confirm('Discard unsaved changes?')) return;
+    onClose();
+  }
+
+  function tryNavigate(target) {
+    if (isDirty && !confirm('Discard unsaved changes?')) return;
+    onNavigate(target);
   }
 
   async function handleSave() {
@@ -108,17 +134,49 @@ function SongModal({ song, onSave, onClose }) {
     }
   }
 
+  const hasPrev = song && songIndex > 0;
+  const hasNext = song && songIndex >= 0 && songIndex < songs.length - 1;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    // No backdrop click-to-close — prevents accidental data loss and text-selection drag dismissal
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
           <h3 className="text-lg font-semibold text-white">{song ? 'Edit Song' : 'Add Song'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            {song && (
+              <>
+                <button
+                  onClick={() => tryNavigate(songs[songIndex - 1])}
+                  disabled={!hasPrev}
+                  title={hasPrev ? songs[songIndex - 1].title : undefined}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-xs text-slate-500 w-10 text-center tabular-nums">{songIndex + 1} / {songs.length}</span>
+                <button
+                  onClick={() => tryNavigate(songs[songIndex + 1])}
+                  disabled={!hasNext}
+                  title={hasNext ? songs[songIndex + 1].title : undefined}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <div className="w-px h-4 bg-slate-700 mx-1" />
+              </>
+            )}
+            <button onClick={tryClose} className="p-1 text-slate-400 hover:text-white transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -161,6 +219,24 @@ function SongModal({ song, onSave, onClose }) {
                   placeholder="e.g. John Newton"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Tag <span className="text-slate-500 font-normal">(optional)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {SONG_TAGS.map((t) => {
+                    const active = form.tag === t.value;
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, tag: active ? '' : t.value }))}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${active ? t.pillActive : t.pill}`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -201,7 +277,7 @@ function SongModal({ song, onSave, onClose }) {
             {error && <p className="text-red-400 text-sm">{error}</p>}
           </div>
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+            <button onClick={tryClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
               Cancel
             </button>
             <button
@@ -427,8 +503,11 @@ export default function Admin() {
       {modalSong !== undefined && (
         <SongModal
           song={modalSong || null}
+          songs={songs}
+          songIndex={modalSong ? songs.findIndex((s) => s.id === modalSong.id) : -1}
           onSave={handleSaveSong}
           onClose={() => setModalSong(undefined)}
+          onNavigate={(s) => setModalSong(s)}
         />
       )}
       {deleteSong && (

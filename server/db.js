@@ -30,4 +30,11 @@ db.exec(`
   VALUES ('sunday_date', date('now', 'weekday 0'));
 `);
 
+// Safe migration: add tag column to existing databases
+try {
+  db.exec(`ALTER TABLE songs ADD COLUMN tag TEXT DEFAULT NULL`);
+} catch {
+  // Column already exists — ignore
+}
+
 module.exports = db;

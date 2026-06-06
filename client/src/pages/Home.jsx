@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { TagBadge } from '../tags';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -90,7 +91,10 @@ export default function Home() {
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-white truncate">{song.title}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="font-semibold text-white truncate">{song.title}</p>
+                      {song.tag && <TagBadge tag={song.tag} />}
+                    </div>
                     {song.artist && (
                       <p className="text-sm text-slate-400 truncate">{song.artist}</p>
                     )}
